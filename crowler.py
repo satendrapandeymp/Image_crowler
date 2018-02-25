@@ -1,59 +1,87 @@
-import urllib2, urllib, os
+import urllib2, urllib, os, random, cookielib, time, sys, ssl, HTMLParser
+from bs4 import BeautifulSoup as Soup
+from selenium import webdriver
 
-seed=raw_input('Enter a url : ')
+reload(sys)
+sys.setdefaultencoding("utf-8")
 
-type = ['jpg', 'png', 'jpeg', 'JPEG']
+def cleanupString(string):
+	string = urllib2.unquote(string).decode('utf8')
+	return HTMLParser.HTMLParser().unescape(string).encode(sys.getfilesystemencoding())
 
+#type = ['jpg', 'png', 'jpeg', 'JPEG']
 if not os.path.exists('Imgs'):
 	os.mkdir('Imgs')
 
-def google_links(page):
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
 
-	opener = urllib2.build_opener()
-	opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
-	response = opener.open(page)
-	html = response.read()
+headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11', 'Connection': 'keep-alive',}
+
+cj = cookielib.CookieJar()
+opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx), urllib2.HTTPCookieProcessor(cj))
+opener.addheaders = [headers]
+
+
+for key in headers:
+    webdriver.DesiredCapabilities.PHANTOMJS['phantomjs.page.customHeaders.{}'.format(key)] = headers[key]
+browser = webdriver.PhantomJS()
+
+def google_links(page):
 	res = []
-	links = html.split('href="/url?q=')
-	for i in range(len(links)-1):
-		temp = links[i+1]
-		link = temp.split('&')[0]
-		if len(link.split(':')) == 2 and len(link.split('%')) == 1:
-			res.append(link)
+	browser.get(page)
+	time.sleep(1)
+	for _ in range(5):
+	    browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+	    time.sleep(1)
+	Page_Html = browser.page_source
+
+	Parsed_html = Soup(Page_Html, "html.parser")
+	Container = Parsed_html.findAll("div", {"data-async-rclass":"search"})[0]
+	rows = Container.findAll("div", {"jscontroller":"Q7Rsec"})
+
+	for row in rows:
+		try:
+			link = row.findAll("a")[0]['href'].split('&')[0].split("imgurl=")[1]
+			original = link
+			link = link.replace("%3A", ":")
+			link = link.replace("%2F", "/")
+			link = link.replace("%2520", "%20")
+
+			name = link.split("://")[1].split("/")[0]
+			name = name + "_" + str(random.randint(1,999)) + "." + link.split(".")[-1]
+			temp = {"link":link, "name":name, "original":original}
+			res.append(temp)
+		except:
+			print "Found something not captured"
+
 	return res
 
-def extract(pages):
+def download(name, arr, num):
+	count = 0
+	name = "Imgs/" + name
+	if not os.path.exists(name):
+		os.mkdir(name)
 
-	for page in pages:
+	for doc in arr:
+		count += 1
+		link = doc["link"]
+		link = cleanupString(link)
+		file_name = name + "/" + doc["name"]
+		try:
+			test = opener.open(link)
+			with open(file_name, 'wb') as file:
+				file.write(test.read())
+		except:
+			print link, doc["original"]
+		if count > num:
+			break
 
-		print 'Page -- ' + page
+seed=raw_input('Enter the keywords : ')
+num=int(raw_input('No of Images you want -- : '))
 
-		opener = urllib2.build_opener()
-		opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
-		response = opener.open(page)
-		html = response.read()
-		res = []
-		links = html.split('<img src="')
-		for i in range(len(links)-3):
-			temp = links[i+1]
-			link = temp.split('"')[0]
-			print 'Link -- ' + link
-			file_type = link.split('.')
-			if (file_type[len(file_type)-1] in type) and (link[:4] == 'http') :
-				if not os.path.exists('Imgs/' + page[12:20]):
-					os.mkdir('Imgs/' + page[12:20])
-				name =  'Imgs/' +  page[12:20] + '/' + str(i)  + '.jpg'
-				urllib.urlretrieve(link, name)
-
-if ('https://' in seed) or ('http://' in seed):
-	result = []
-	result.append(seed)
-	extract(result)
-else:
-	query = ""
-	words = seed.split(' ')
-	for word in words:
-		query = query + word + '+'
-	seed = "https://www.google.co.in/search?safe=off&q=" + query
-	result = google_links(seed)
-	extract(result)
+query = "https://www.google.co.in/search?client=ubuntu&hs=JQU&channel=fs&dcr=0&source=lnms&tbm=isch&sa=X&ved=0ahUKEwi4hammhsDZAhXBL48KHVVRDtsQ_AUICygC&biw=1366&bih=662" + "+".join(seed.split(' '))
+result = google_links(query)
+print len(result)
+download(seed, result,num)
