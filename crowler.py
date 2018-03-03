@@ -97,3 +97,5 @@ else:
 			writer.write(url + "\n")
 
 download(seed, result,num)
+
+os.remove("ghostdriver.log")
