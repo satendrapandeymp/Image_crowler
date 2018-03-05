@@ -9,6 +9,8 @@
 ## 2) Installing PhantomJS
 
 Download PHANTOMJS from official Site.
+and copy
+
 ``sudo cp PhantomJS /usr/local/bin``
 
 ## 3) Installing BeautifulSoup
