@@ -1,6 +1,6 @@
 # Image_crowler
 
-***Creating Enviourment***
+***Creating Environment***
 
 ## 1) Installing selenium
 
